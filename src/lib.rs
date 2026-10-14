@@ -18,7 +18,7 @@ pub struct Voice {
     pub inflection: f32,
     pub tick: Duration,
     pub length: Duration,
-    // Letters left silent after each sound.
+    // Letters left silent after each sound, starting fresh each word.
     pub skip: usize,
     // Added after `, ; :` and doubled after a stop.
     pub pause: Duration,
@@ -75,7 +75,7 @@ impl Voice {
             pitch: 1.1,
             jitter: 3.0,
             inflection: 5.0,
-            length: Duration::from_millis(200),
+            length: Duration::from_millis(135),
             skip: 2,
             ..Self::new(VOWELS.map(vowel).into())
         }
@@ -123,13 +123,17 @@ impl Voice {
             })
             .collect();
 
+        let mut run = 0;
         let sounds = text
             .chars()
             .zip(&cues)
             .zip(lifts.iter().rev())
             .enumerate()
-            .filter(|(_, ((c, _), _))| c.is_alphanumeric())
-            .step_by(self.skip.saturating_add(1));
+            .filter(|(_, ((c, _), _))| {
+                let sounds = c.is_alphanumeric() && run % self.skip.saturating_add(1) == 0;
+                run = if c.is_alphanumeric() { run + 1 } else { 0 };
+                sounds
+            });
         for (i, ((c, cue), lift)) in sounds {
             let letter = (c.to_ascii_lowercase() as u32).wrapping_sub('a' as u32) as usize;
             let Some(clip) = self
@@ -283,6 +287,16 @@ mod tests {
         assert!(voice.speak("a").iter().any(|s| *s != 0.0));
         assert_eq!(voice.speak("A"), voice.speak("a"));
         assert!(voice.speak("b").iter().all(|s| *s == 0.0));
+    }
+
+    #[test]
+    fn every_word_sounds() {
+        let voice = Voice {
+            skip: 9,
+            ..Voice::new(vec![vec![1.0]])
+        };
+        let second = (voice.cues("a b")[2].as_secs_f64() * 44_100.0) as usize;
+        assert!(voice.speak("a b")[second..].iter().any(|s| *s != 0.0));
     }
 
     #[test]
