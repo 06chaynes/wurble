@@ -1,0 +1,25 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cargo install wasm-bindgen-cli --locked --version "$(cargo pkgid wasm-bindgen | cut -d@ -f2)"
+      - run: cargo rustc --lib --release --target wasm32-unknown-unknown --features wasm-bindgen --crate-type cdylib
+      - run: wasm-bindgen --target web --no-typescript --out-dir web target/wasm32-unknown-unknown/release/wurble.wasm
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web
+      - uses: actions/deploy-pages@v5
