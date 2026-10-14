@@ -6,7 +6,7 @@ const VOWELS: [[f32; 2]; 5] = [[4.6, 7.0], [2.9, 11.0], [1.7, 13.4], [2.9, 5.2],
 
 #[derive(Clone, Debug)]
 pub struct Voice {
-    // Sound bank; a letter picks its clip by code point, and short clips loop.
+    // Sound bank; `a` picks the first clip, `b` the next and so on, wrapping. Short clips loop.
     pub clips: Vec<Vec<f32>>,
     // Of both the clips and the output.
     pub sample_rate: u32,
@@ -131,9 +131,10 @@ impl Voice {
             .filter(|(_, ((c, _), _))| c.is_alphanumeric())
             .step_by(self.skip.saturating_add(1));
         for (i, ((c, cue), lift)) in sounds {
+            let letter = (c.to_ascii_lowercase() as u32).wrapping_sub('a' as u32) as usize;
             let Some(clip) = self
                 .clips
-                .get(c as usize % self.clips.len().max(1))
+                .get(letter % self.clips.len().max(1))
                 .filter(|clip| !clip.is_empty())
             else {
                 continue;
@@ -270,6 +271,16 @@ mod tests {
                 .iter()
                 .all(|s| *s == 0.0)
         );
+    }
+
+    #[test]
+    fn letters_index_clips_from_a() {
+        let mut clips = vec![vec![0.0]; 26];
+        clips[0] = vec![1.0];
+        let voice = Voice::new(clips);
+        assert!(voice.speak("a").iter().any(|s| *s != 0.0));
+        assert_eq!(voice.speak("A"), voice.speak("a"));
+        assert!(voice.speak("b").iter().all(|s| *s == 0.0));
     }
 
     #[test]
