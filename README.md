@@ -27,10 +27,10 @@ std::fs::write("hello.wav", wav).unwrap();
 
 | Voice | Sounds like | Listen |
 |---|---|---|
-| `Voice::chitter()` | quick and squeaky, I'm in the crossing for animals | [▶](assets/chitter.wav) |
-| `Voice::grumble()` | low grunts, grab a banjo or a kazoo(ie) | [▶](assets/grumble.wav) |
-| `Voice::blip()` | one beep per letter, under the night stars... tale (idk either) | [▶](assets/blip.wav) |
-| `Voice::babble()` | slow fluent nonsense, the neighbours have a pool but no ladder | [▶](assets/babble.wav) |
+| `Voice::chitter()` | quick and squeaky, I'm in the crossing for animals | [▶](https://cdn.jsdelivr.net/gh/06chaynes/wurble@main/assets/chitter.wav) |
+| `Voice::grumble()` | low grunts, grab a banjo or a kazoo(ie) | [▶](https://cdn.jsdelivr.net/gh/06chaynes/wurble@main/assets/grumble.wav) |
+| `Voice::blip()` | one beep per letter, under the night stars... tale (idk either) | [▶](https://cdn.jsdelivr.net/gh/06chaynes/wurble@main/assets/blip.wav) |
+| `Voice::babble()` | slow fluent nonsense, the neighbours have a pool but no ladder | [▶](https://cdn.jsdelivr.net/gh/06chaynes/wurble@main/assets/babble.wav) |
 
 ### Make it yours
 
