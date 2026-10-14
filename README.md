@@ -25,6 +25,8 @@ std::fs::write("hello.wav", wav).unwrap();
 
 ### Voices
 
+Each example is saying "Oh, hi! Um... can you hear me?"
+
 | Voice | Sounds like | Listen |
 |---|---|---|
 | `Voice::chitter()` | quick and squeaky, I'm in the crossing for animals | [▶](https://cdn.jsdelivr.net/gh/06chaynes/wurble@main/assets/chitter.wav) |
