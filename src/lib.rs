@@ -182,7 +182,7 @@ impl Voice {
     }
 }
 
-// One cycle built from the amplitude of each harmonic (1-based), peaking at 1.
+// One cycle built from the amplitude of each harmonic (1-based), at a common loudness that never exceeds 1.
 pub fn wave(harmonics: impl Fn(usize) -> f32) -> Vec<f32> {
     let size = 256;
     let cycle: Vec<f32> = (0..size)
@@ -195,7 +195,9 @@ pub fn wave(harmonics: impl Fn(usize) -> f32) -> Vec<f32> {
     let peak = cycle
         .iter()
         .fold(f32::MIN_POSITIVE, |peak, s| peak.max(s.abs()));
-    cycle.iter().map(|s| s / peak).collect()
+    let rms = (cycle.iter().map(|s| s * s).sum::<f32>() / size as f32).sqrt();
+    let gain = (0.3 / rms).min(1.0 / peak);
+    cycle.iter().map(|s| s * gain).collect()
 }
 
 fn vowel(formants: [f32; 2]) -> Vec<f32> {
