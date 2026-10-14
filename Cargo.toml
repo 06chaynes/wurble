@@ -6,6 +6,7 @@ description = "Dialogue voice synthesis for games, from procedural blips or your
 authors = ["Christian Haynes <06chaynes@gmail.com>"]
 repository = "https://github.com/06chaynes/wurble"
 license ="MIT OR Apache-2.0"
+exclude = ["assets"]
 
 [lints.rust]
 unsafe_code = "forbid"

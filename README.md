@@ -25,12 +25,12 @@ std::fs::write("hello.wav", wav).unwrap();
 
 ### Voices
 
-| Voice | Sounds like |
-|---|---|
-| `Voice::chitter()` | quick and squeaky, I'm in the crossing for animals |
-| `Voice::grumble()` | low grunts, grab a banjo or a kazoo(ie) |
-| `Voice::blip()` | one beep per letter, under the night stars... tale (idk either) |
-| `Voice::babble()` | slow fluent nonsense, the neighbours have a pool but no ladder |
+| Voice | Sounds like | Listen |
+|---|---|---|
+| `Voice::chitter()` | quick and squeaky, I'm in the crossing for animals | [▶](assets/chitter.wav) |
+| `Voice::grumble()` | low grunts, grab a banjo or a kazoo(ie) | [▶](assets/grumble.wav) |
+| `Voice::blip()` | one beep per letter, under the night stars... tale (idk either) | [▶](assets/blip.wav) |
+| `Voice::babble()` | slow fluent nonsense, the neighbours have a pool but no ladder | [▶](assets/babble.wav) |
 
 ### Make it yours
 
@@ -49,7 +49,7 @@ let deep = Voice { pitch: 0.5, jitter: 6.0, ..Voice::grumble() };
 | `inflection` | semitones of rise into a `?`; a `!` gets half |
 | `tick` | time per character |
 | `length` | how long each sound lasts |
-| `skip` | letters left silent after each sound |
+| `skip` | letters left silent after each sound, starting fresh each word |
 | `pause` | silence after `, ; :`, doubled after `. ! ? …` |
 | `seed` | same seed, same wobble |
 
