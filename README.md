@@ -50,9 +50,10 @@ let deep = Voice { pitch: 0.5, jitter: 6.0, ..Voice::grumble() };
 | `jitter` | semitones of random wobble per sound |
 | `inflection` | semitones of rise into a `?`; a `!` gets half |
 | `tick` | seconds per character |
-| `length` | seconds each sound lasts |
+| `length` | seconds each sound lasts, half again for a sentence's last word |
 | `skip` | letters left silent after each sound, starting fresh each word |
 | `pause` | seconds of silence after `, ; :`, doubled after `. ! ? …` |
+| `hiss` | how breathy each consonant starts, `0` to `1` |
 | `seed` | same seed, same wobble |
 
 Got your own noises? Hand them over as mono `f32` clips at the voice's `sample_rate`. Each letter picks a clip, so one clip means everything is that noise and 26 in a to z order is an alphabet.

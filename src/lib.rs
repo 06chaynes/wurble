@@ -4,8 +4,14 @@ use std::{f32::consts::TAU, iter::once};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 const STOPS: [char; 4] = ['.', '!', '?', '…'];
-// Formant pairs of a, e, i, o, u, in harmonics of one cycle.
-const VOWELS: [[f32; 2]; 5] = [[4.6, 7.0], [2.9, 11.0], [1.7, 13.4], [2.9, 5.2], [2.0, 4.6]];
+// First three formants of a, e, i, o, u, in harmonics of one cycle.
+const VOWELS: [[f32; 3]; 5] = [
+    [4.6, 7.0, 14.2],
+    [2.9, 11.0, 14.4],
+    [1.7, 13.4, 17.5],
+    [2.9, 5.2, 14.0],
+    [2.0, 4.6, 13.0],
+];
 
 #[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
 #[derive(Clone, Debug)]
@@ -23,12 +29,14 @@ pub struct Voice {
     pub inflection: f32,
     // Seconds per character.
     pub tick: f32,
-    // Seconds each sound lasts.
+    // Seconds each sound lasts, half again for a sentence's last word.
     pub length: f32,
     // Letters left silent after each sound, starting fresh each word.
     pub skip: usize,
     // Seconds added after `, ; :` and doubled after a stop.
     pub pause: f32,
+    // How breathy each consonant starts, from 0 to 1.
+    pub hiss: f32,
     pub seed: u64,
 }
 
@@ -44,6 +52,7 @@ impl Voice {
             length: 0.06,
             skip: 0,
             pause: 0.15,
+            hiss: 0.0,
             seed: 0,
         }
     }
@@ -56,6 +65,7 @@ impl Voice {
             pitch: 2.0,
             jitter: 1.5,
             inflection: 3.0,
+            hiss: 0.3,
             ..Self::new(VOWELS.map(vowel).into())
         }
     }
@@ -67,6 +77,7 @@ impl Voice {
             inflection: 2.0,
             length: 0.11,
             skip: 1,
+            hiss: 0.3,
             ..Self::new(vec![vowel(VOWELS[4])])
         }
     }
@@ -87,6 +98,7 @@ impl Voice {
             inflection: 5.0,
             length: 0.135,
             skip: 2,
+            hiss: 0.3,
             ..Self::new(VOWELS.map(vowel).into())
         }
     }
@@ -111,25 +123,27 @@ impl Voice {
     pub fn speak(&self, text: &str) -> Vec<f32> {
         let cues = self.cues(text);
         let at = |seconds: &f32| (seconds * self.sample_rate as f32).round() as usize;
-        let len = at(&self.length);
         let mut out = vec![0.0; cues.last().map_or(0, at)];
 
-        // Scanned backwards so each character knows the stop ahead of it and how far off it is.
-        let mut stop = (' ', 0f32);
-        let lifts: Vec<f32> = text
+        // Scanned backwards so each character knows the stop ahead of it, how far off it is
+        // and whether its word ends the sentence.
+        let mut stop = (' ', 0f32, true);
+        let lifts: Vec<(f32, bool)> = text
             .chars()
             .rev()
             .map(|c| {
                 if STOPS.contains(&c) {
-                    stop = (c, 0.0);
+                    stop = (c, 0.0, true);
                 } else {
                     stop.1 += 1.0;
+                    stop.2 &= c.is_alphanumeric();
                 }
-                match stop.0 {
+                let lift = match stop.0 {
                     '?' => (1.0 - stop.1 / 8.0).max(0.0),
                     '!' => 0.5,
                     _ => 0.0,
-                }
+                };
+                (lift, stop.2)
             })
             .collect();
 
@@ -144,25 +158,57 @@ impl Voice {
                 run = if c.is_alphanumeric() { run + 1 } else { 0 };
                 sounds
             });
-        for (i, ((c, cue), lift)) in sounds {
+        let mut last = None;
+        for (i, ((c, cue), (lift, ends))) in sounds {
             let letter = (c.to_ascii_lowercase() as u32).wrapping_sub('a' as u32) as usize;
             let Some(clip) = self
                 .clips
                 .get(letter % self.clips.len().max(1))
-                .filter(|clip| !clip.is_empty())
+                .filter(|clip| !clip.is_empty() && self.pitch > 0.0)
             else {
                 continue;
             };
-            let bend = self.jitter * noise(self.seed ^ ((i as u64) << 32) ^ c as u64)
-                + self.inflection * lift;
-            let rate = self.pitch * 2f32.powf(bend / 12.0);
+            let key = self.seed ^ ((i as u64) << 32) ^ c as u64;
+            let bend = self.jitter * noise(key) + self.inflection * lift;
+            let from = last.replace(bend).unwrap_or(bend);
+            let hiss = if "aeiou".contains(c.to_ascii_lowercase()) {
+                0.0
+            } else {
+                self.hiss
+            };
+            // The last word of a sentence is drawn out.
+            let len = at(&(self.length * if *ends { 1.5 } else { 1.0 }));
+            let read = |m: f32| {
+                let pos = m * self.pitch;
+                let j = pos as usize % clip.len();
+                clip[j] + (clip[(j + 1) % clip.len()] - clip[j]) * pos.fract()
+            };
             let start = at(cue);
             out.resize(out.len().max(start + len), 0.0);
+            let mut phase = 0f32;
             for (n, sample) in out[start..start + len].iter_mut().enumerate() {
-                let (pos, t) = (n as f32 * rate, n as f32 / len as f32);
-                let j = pos as usize % clip.len();
-                let (a, b) = (clip[j], clip[(j + 1) % clip.len()]);
-                *sample += (a + (b - a) * pos.fract()) * (8.0 * t.min(1.0 - t)).min(1.0);
+                let t = n as f32 / len as f32;
+                // Slides from the last sound's pitch over the first half. The clip restarts every
+                // bent period but always plays at `pitch`, so bends keep the vowel.
+                let glide = from + (bend - from) * (2.0 * t).min(1.0);
+                let period = (clip.len() as f32 / self.pitch / 2f32.powf(glide / 12.0))
+                    .clamp(1.0, len as f32);
+                let f = phase.fract();
+                phase += 1.0 / period;
+                let voiced = read(f * period) * f + read((f + 1.0) * period) * (1.0 - f);
+                let b = hiss * (1.0 - t).powi(2);
+                // Noise filtered by one cycle of the clip at its loudness and pulsed each period,
+                // so breath shares the vowel and pitch.
+                let breath = if b > 0.0 {
+                    (0..period as usize)
+                        .map(|j| noise(key ^ (n + j) as u64) * read(j as f32))
+                        .sum::<f32>()
+                        * (3.0 / period).sqrt()
+                        * if f < 0.5 { 1.0 } else { 0.5 }
+                } else {
+                    0.0
+                };
+                *sample += (voiced * (1.0 - b) + breath * b) * (8.0 * t.min(1.0 - t)).min(1.0);
             }
         }
         out.iter_mut().for_each(|s| *s = s.clamp(-1.0, 1.0));
@@ -214,7 +260,7 @@ pub fn wave(harmonics: impl Fn(usize) -> f32) -> Vec<f32> {
     cycle.iter().map(|s| s * gain).collect()
 }
 
-fn vowel(formants: [f32; 2]) -> Vec<f32> {
+fn vowel(formants: [f32; 3]) -> Vec<f32> {
     wave(|k| {
         formants
             .iter()
@@ -315,6 +361,17 @@ mod tests {
         let voice = Voice::chitter();
         assert_ne!(voice.speak("you?"), voice.speak("you."));
         assert_ne!(voice.speak("you!"), voice.speak("you."));
+    }
+
+    #[test]
+    fn only_consonants_breathe() {
+        let voice = Voice::chitter();
+        let calm = Voice {
+            hiss: 0.0,
+            ..voice.clone()
+        };
+        assert_ne!(voice.speak("b"), calm.speak("b"));
+        assert_eq!(voice.speak("a"), calm.speak("a"));
     }
 
     #[test]
