@@ -25,7 +25,7 @@ std::fs::write("hello.wav", wav).unwrap();
 
 ### Voices
 
-Each example is saying "Oh, hi! Um... can you hear me?"
+Each example is saying "Oh, hi! Um... can you hear me?" Make them say something else [here](https://06chaynes.github.io/wurble/).
 
 | Voice | Sounds like | Listen |
 |---|---|---|
@@ -49,10 +49,10 @@ let deep = Voice { pitch: 0.5, jitter: 6.0, ..Voice::grumble() };
 | `pitch` | playback rate; `2.0` is an octave up |
 | `jitter` | semitones of random wobble per sound |
 | `inflection` | semitones of rise into a `?`; a `!` gets half |
-| `tick` | time per character |
-| `length` | how long each sound lasts |
+| `tick` | seconds per character |
+| `length` | seconds each sound lasts |
 | `skip` | letters left silent after each sound, starting fresh each word |
-| `pause` | silence after `, ; :`, doubled after `. ! ? …` |
+| `pause` | seconds of silence after `, ; :`, doubled after `. ! ? …` |
 | `seed` | same seed, same wobble |
 
 Got your own noises? Hand them over as mono `f32` clips at the voice's `sample_rate`. Each letter picks a clip, so one clip means everything is that noise and 26 in a to z order is an alphabet.
@@ -71,7 +71,7 @@ let hum = Voice::new(vec![wave(|k| 1.0 / (k * k) as f32)]);
 
 ### Typewriter text
 
-`cues` says when each character starts, so the words can show up as they're mumbled. The last entry is when the line ends.
+`cues` says when each character starts, in seconds, so the words can show up as they're mumbled. The last entry is when the line ends.
 
 ```rust
 let cues = voice.cues(line);
@@ -83,4 +83,5 @@ let visible: String = line.chars().take(shown).collect();
 
 - **A file:** `voice.wav(text)` is a complete WAV file.
 - **Bevy:** `AudioSource { bytes: voice.wav(text).into() }`, with Bevy's `wav` feature on.
-- **rodio, Kira, cpal, a browser:** `voice.speak(text)` is mono `f32` samples at `voice.sample_rate`.
+- **rodio, Kira, cpal:** `voice.speak(text)` is mono `f32` samples at `voice.sample_rate`.
+- **A browser:** turn on the `wasm-bindgen` feature and `Voice` works from JavaScript.

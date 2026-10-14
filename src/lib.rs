@@ -1,12 +1,17 @@
-use std::{f32::consts::TAU, iter::once, time::Duration};
+use std::{f32::consts::TAU, iter::once};
+
+#[cfg(feature = "wasm-bindgen")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
 const STOPS: [char; 4] = ['.', '!', '?', '…'];
 // Formant pairs of a, e, i, o, u, in harmonics of one cycle.
 const VOWELS: [[f32; 2]; 5] = [[4.6, 7.0], [2.9, 11.0], [1.7, 13.4], [2.9, 5.2], [2.0, 4.6]];
 
+#[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
 #[derive(Clone, Debug)]
 pub struct Voice {
     // Sound bank; `a` picks the first clip, `b` the next and so on, wrapping. Short clips loop.
+    #[cfg_attr(feature = "wasm-bindgen", wasm_bindgen(skip))]
     pub clips: Vec<Vec<f32>>,
     // Of both the clips and the output.
     pub sample_rate: u32,
@@ -16,12 +21,14 @@ pub struct Voice {
     pub jitter: f32,
     // Semitones of rise into `?`; `!` lifts its clause by half of it.
     pub inflection: f32,
-    pub tick: Duration,
-    pub length: Duration,
+    // Seconds per character.
+    pub tick: f32,
+    // Seconds each sound lasts.
+    pub length: f32,
     // Letters left silent after each sound, starting fresh each word.
     pub skip: usize,
-    // Added after `, ; :` and doubled after a stop.
-    pub pause: Duration,
+    // Seconds added after `, ; :` and doubled after a stop.
+    pub pause: f32,
     pub seed: u64,
 }
 
@@ -33,14 +40,17 @@ impl Voice {
             pitch: 1.0,
             jitter: 0.0,
             inflection: 0.0,
-            tick: Duration::from_millis(60),
-            length: Duration::from_millis(60),
+            tick: 0.06,
+            length: 0.06,
             skip: 0,
-            pause: Duration::from_millis(150),
+            pause: 0.15,
             seed: 0,
         }
     }
+}
 
+#[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
+impl Voice {
     pub fn chitter() -> Self {
         Self {
             pitch: 2.0,
@@ -55,7 +65,7 @@ impl Voice {
             pitch: 0.7,
             jitter: 4.0,
             inflection: 2.0,
-            length: Duration::from_millis(110),
+            length: 0.11,
             skip: 1,
             ..Self::new(vec![vowel(VOWELS[4])])
         }
@@ -64,8 +74,8 @@ impl Voice {
     pub fn blip() -> Self {
         Self {
             pitch: 2.5,
-            tick: Duration::from_millis(40),
-            length: Duration::from_millis(30),
+            tick: 0.04,
+            length: 0.03,
             ..Self::new(vec![wave(|k| (k % 2) as f32 / k as f32)])
         }
     }
@@ -75,21 +85,21 @@ impl Voice {
             pitch: 1.1,
             jitter: 3.0,
             inflection: 5.0,
-            length: Duration::from_millis(135),
+            length: 0.135,
             skip: 2,
             ..Self::new(VOWELS.map(vowel).into())
         }
     }
 
-    // Start time of each character, then the total length.
-    pub fn cues(&self, text: &str) -> Vec<Duration> {
-        let mut at = Duration::ZERO;
+    // Start time of each character in seconds, then the total length.
+    pub fn cues(&self, text: &str) -> Vec<f32> {
+        let mut at = 0.0;
         once(at)
             .chain(text.chars().map(|c| {
                 let pauses = match c {
-                    ',' | ';' | ':' => 1,
-                    c if STOPS.contains(&c) => 2,
-                    _ => 0,
+                    ',' | ';' | ':' => 1.0,
+                    c if STOPS.contains(&c) => 2.0,
+                    _ => 0.0,
                 };
                 at += self.tick + self.pause * pauses;
                 at
@@ -100,7 +110,7 @@ impl Voice {
     // Mono samples in [-1, 1].
     pub fn speak(&self, text: &str) -> Vec<f32> {
         let cues = self.cues(text);
-        let at = |d: &Duration| (d.as_secs_f64() * f64::from(self.sample_rate)) as usize;
+        let at = |seconds: &f32| (seconds * self.sample_rate as f32).round() as usize;
         let len = at(&self.length);
         let mut out = vec![0.0; cues.last().map_or(0, at)];
 
@@ -238,18 +248,19 @@ mod tests {
     fn cues_follow_ticks_and_pauses() {
         let voice = Voice::blip();
         let cues = voice.cues("a, b.");
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-6;
         assert_eq!(cues.len(), 6);
-        assert_eq!(cues[1], voice.tick);
-        assert_eq!(cues[2] - cues[1], voice.tick + voice.pause);
-        assert_eq!(cues[5] - cues[4], voice.tick + voice.pause * 2);
+        assert!(close(cues[1], voice.tick));
+        assert!(close(cues[2] - cues[1], voice.tick + voice.pause));
+        assert!(close(cues[5] - cues[4], voice.tick + voice.pause * 2.0));
     }
 
     #[test]
     fn audio_spans_the_cues() {
         for voice in presets() {
             let text = "Well, hello there. Is it you?";
-            let end = voice.cues(text)[text.chars().count()].as_secs_f64();
-            assert_eq!(voice.speak(text).len(), (end * 44_100.0) as usize);
+            let end = voice.cues(text)[text.chars().count()];
+            assert_eq!(voice.speak(text).len(), (end * 44_100.0).round() as usize);
         }
     }
 
@@ -295,7 +306,7 @@ mod tests {
             skip: 9,
             ..Voice::new(vec![vec![1.0]])
         };
-        let second = (voice.cues("a b")[2].as_secs_f64() * 44_100.0) as usize;
+        let second = (voice.cues("a b")[2] * 44_100.0).round() as usize;
         assert!(voice.speak("a b")[second..].iter().any(|s| *s != 0.0));
     }
 

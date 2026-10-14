@@ -1,12 +1,15 @@
 [package]
 name = "wurble"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 description = "Dialogue voice synthesis for games, from procedural blips or your own sample banks"
 authors = ["Christian Haynes <06chaynes@gmail.com>"]
 repository = "https://github.com/06chaynes/wurble"
 license ="MIT OR Apache-2.0"
-exclude = ["assets"]
+exclude = ["assets", "web"]
+
+[dependencies]
+wasm-bindgen = { version = "0.2.129", optional = true }
 
 [lints.rust]
 unsafe_code = "forbid"
