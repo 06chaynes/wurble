@@ -58,6 +58,19 @@ impl Voice {
     }
 }
 
+#[cfg(feature = "wasm-bindgen")]
+#[wasm_bindgen]
+impl Voice {
+    #[wasm_bindgen(constructor)]
+    pub fn empty() -> Self {
+        Self::new(vec![])
+    }
+
+    pub fn add_clip(&mut self, clip: &[f32]) {
+        self.clips.push(clip.to_vec());
+    }
+}
+
 #[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
 impl Voice {
     pub fn chitter() -> Self {
@@ -220,7 +233,7 @@ impl Voice {
         let data: Vec<u8> = self
             .speak(text)
             .iter()
-            .flat_map(|s| ((s * 32767.0) as i16).to_le_bytes())
+            .flat_map(|s| ((s * 32767.0).round() as i16).to_le_bytes())
             .collect();
         let len = data.len() as u32;
         let parts: [&[u8]; 13] = [

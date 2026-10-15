@@ -7,7 +7,7 @@
   form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.5rem; }
   label { display: flex; justify-content: space-between; align-items: center; }
   label input { width: 5rem; }
-  select, [name=text], button { grid-column: 1 / -1; }
+  select, [name=clips], [name=text], button { grid-column: 1 / -1; }
   p { font-size: 1.5rem; min-height: 2em; }
   audio { width: 100%; }
 </style>
@@ -18,6 +18,7 @@
     <option>blip</option>
     <option>babble</option>
   </select>
+  <input name="clips" type="file" accept="audio/*" multiple>
   <label>pitch <input name="pitch" type="number" step="0.05"></label>
   <label>jitter <input name="jitter" type="number" step="0.5"></label>
   <label>inflection <input name="inflection" type="number" step="0.5"></label>
@@ -42,11 +43,22 @@
   let voice, text, cues;
 
   form.preset.onchange = () => {
+    form.clips.value = "";
     voice = Voice[form.preset.value]();
     // f32 fields widen to noisy JS numbers, so round them for display.
     for (const input of fields) input.value = +voice[input.name].toPrecision(6);
   };
   form.preset.onchange();
+
+  // One clip per file in name order, so a.wav to z.wav is an alphabet.
+  form.clips.onchange = async () => {
+    voice = new Voice();
+    const decoder = new OfflineAudioContext(1, 1, voice.sample_rate);
+    const files = [...form.clips.files].sort((a, b) => a.name.localeCompare(b.name));
+    for (const file of files) {
+      voice.add_clip((await decoder.decodeAudioData(await file.arrayBuffer())).getChannelData(0));
+    }
+  };
 
   form.onsubmit = event => {
     event.preventDefault();
