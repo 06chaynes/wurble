@@ -86,3 +86,4 @@ let visible: String = line.chars().take(shown).collect();
 - **Bevy:** `AudioSource { bytes: voice.wav(text).into() }`, with Bevy's `wav` feature on.
 - **rodio, Kira, cpal:** `voice.speak(text)` is mono `f32` samples at `voice.sample_rate`.
 - **A browser:** turn on the `wasm-bindgen` feature and `Voice` works from JavaScript.
+- **npm:** `npm add wurble-rs` for `Voice` in JavaScript or TypeScript, types included. `import init, { Voice } from "wurble-rs"; await init();` then `Voice.chitter().wav("Well, hello there. Is that you?")`. TypeScript needs 5.2+ and `esnext.disposable` in `lib`.
