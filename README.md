@@ -62,6 +62,8 @@ Got your own noises? Hand them over as mono `f32` clips at the voice's `sample_r
 let mine = Voice::new(vec![my_grunt]);
 ```
 
+From JavaScript, upload the whole bank at once with `voice.set_clips(flat, lengths)` (a `Float32Array` plus a `Uint32Array`), and read it back with `clips_flat()` / `clip_lengths()`.
+
 `wave` grows one cycle of sound from the loudness of each harmonic.
 
 ```rust

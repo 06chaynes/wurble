@@ -69,6 +69,24 @@ impl Voice {
     pub fn add_clip(&mut self, clip: &[f32]) {
         self.clips.push(clip.to_vec());
     }
+
+    // Replaces the bank with clips cut in turn from `samples`, one per entry of `lengths`; a clip
+    // running past the end of `samples` keeps what is left.
+    pub fn set_clips(&mut self, samples: &[f32], lengths: &[u32]) {
+        let mut rest = samples.iter().copied();
+        self.clips = lengths
+            .iter()
+            .map(|&len| rest.by_ref().take(len as usize).collect())
+            .collect();
+    }
+
+    pub fn clips_flat(&self) -> Vec<f32> {
+        self.clips.concat()
+    }
+
+    pub fn clip_lengths(&self) -> Vec<u32> {
+        self.clips.iter().map(|c| c.len() as u32).collect()
+    }
 }
 
 #[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
@@ -406,5 +424,34 @@ mod tests {
         assert_eq!(wav[4..8], (36 + samples * 2).to_le_bytes());
         assert_eq!(wav[24..28], 44_100u32.to_le_bytes());
         assert_eq!(wav[40..44], (samples * 2).to_le_bytes());
+    }
+
+    #[cfg(feature = "wasm-bindgen")]
+    #[test]
+    fn set_clips_round_trips_flat_bank() {
+        let mut voice = Voice::new(vec![]);
+        voice.set_clips(&[1.0, 0.5, 0.25, 0.125], &[2, 2]);
+        assert_eq!(voice.clip_lengths(), [2, 2]);
+        assert_eq!(voice.clips_flat(), [1.0, 0.5, 0.25, 0.125]);
+        assert_eq!(voice.clips, [vec![1.0, 0.5], vec![0.25, 0.125]]);
+    }
+
+    #[cfg(feature = "wasm-bindgen")]
+    #[test]
+    fn set_clips_clamps_overlong_lengths() {
+        let mut voice = Voice::new(vec![]);
+        voice.set_clips(&[1.0], &[5]);
+        assert_eq!(voice.clip_lengths(), [1]);
+        voice.set_clips(&[], &[]);
+        assert!(voice.clips_flat().is_empty() && voice.clip_lengths().is_empty());
+    }
+
+    #[cfg(feature = "wasm-bindgen")]
+    #[test]
+    fn custom_bank_still_speaks() {
+        let mut voice = Voice::new(vec![]);
+        voice.set_clips(&wave(|k| 1.0 / k as f32), &[256]);
+        assert!(!voice.speak("hi").is_empty());
+        assert_eq!(voice.cues("hi").len(), 3);
     }
 }
